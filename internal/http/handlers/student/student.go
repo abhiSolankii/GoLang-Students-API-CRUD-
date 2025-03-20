@@ -152,3 +152,30 @@ func UpdateById(storage storage.Storage) http.HandlerFunc {
 
 	}
 }
+
+func DeleteById(storage storage.Storage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.PathValue("id")
+		if idStr == "" {
+			slog.Error("id is empty")
+			response.WriteJson(w, http.StatusBadRequest, response.GeneralError(fmt.Errorf("id is required")))
+			return
+		}
+		//Type of id is string so we need to convert it to int64
+		id, err := strconv.ParseInt(idStr, 10, 64) // 10 is base of the number and 64 is size of the int
+		if err != nil {
+			slog.Error("failed to parse id", slog.String("err", err.Error()))
+			response.WriteJson(w, http.StatusBadRequest, response.GeneralError(err))
+			return
+		}
+
+		slog.Info("Deleting a student", slog.Int64("id", id))
+		deletedId, err := storage.DeleteStudentById(id)
+		if err != nil {
+			slog.Error("error deleting student", slog.String("id", idStr))
+			response.WriteJson(w, http.StatusInternalServerError, response.GeneralError(err))
+			return
+		}
+		response.WriteJson(w, http.StatusOK, map[string]int64{"id": deletedId})
+	}
+}
