@@ -98,3 +98,57 @@ func GetList(storage storage.Storage) http.HandlerFunc {
 		response.WriteJson(w, http.StatusOK, students)
 	}
 }
+
+func UpdateById(storage storage.Storage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.PathValue("id")
+		if idStr == "" {
+			slog.Error("id is empty")
+			response.WriteJson(w, http.StatusBadRequest, response.GeneralError(fmt.Errorf("id is required")))
+			return
+		}
+		//Type of id is string so we need to convert it to int64
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			slog.Error("failed to parse id", slog.String("err", err.Error()))
+			response.WriteJson(w, http.StatusBadRequest, response.GeneralError(err))
+			return
+		}
+
+		var student types.Student
+
+		err = json.NewDecoder(r.Body).Decode(&student)
+		if errors.Is(err, io.EOF) {
+			slog.Error("Error decoding JSON:", slog.String("Error", err.Error()))
+			response.WriteJson(w, http.StatusBadRequest, response.GeneralError(fmt.Errorf("empty body")))
+			return
+		}
+		if err != nil {
+			slog.Error("Error decoding JSON:", slog.String("Error", err.Error()))
+			response.WriteJson(w, http.StatusBadRequest, response.GeneralError(err))
+			return
+		}
+
+		//Request validation
+		if err := validator.New().Struct(student); err != nil {
+			slog.Error("Error validating request:", slog.String("Error", err.Error()))
+			validateErrs := err.(validator.ValidationErrors)
+			response.WriteJson(w, http.StatusBadRequest, response.ValidationError(validateErrs))
+			return
+		}
+
+		slog.Info("Updating a student", slog.Int64("id", id))
+
+		updatedStudent, err := storage.UpdateStudentById(id, student)
+		if err != nil {
+			slog.Error("Failed to update student", slog.String("err", err.Error()))
+			response.WriteJson(w, http.StatusInternalServerError, response.GeneralError(err))
+			return
+		}
+		//keep id field same
+		updatedStudent.ID = id
+		slog.Info("Student updated successfully with id", slog.Int64("id", id))
+		response.WriteJson(w, http.StatusOK, updatedStudent)
+
+	}
+}
